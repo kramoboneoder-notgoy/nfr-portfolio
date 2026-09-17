@@ -5,6 +5,10 @@ data, written as a Databricks notebook and run on Databricks Community
 Edition. It uses the same Basel operational-risk taxonomy and CEE region
 footprint as Project 1, so the portfolio tells one story across tools.
 
+
+The problem. Once incident data outgrows a laptop — multiple entities, multiple years, several source systems — a pandas script stops being enough, and ad-hoc cleaning makes it impossible to trace where a number in a management report actually came from. This project moves the same pipeline onto Databricks using the bronze/silver/gold pattern, so raw data is preserved untouched, every transformation is explicit, and reporting tables are pre-built and auditable.
+
+
 <!-- After running on Databricks, add: ![Pipeline run](databricks_output.png) -->
 
 ## Layers

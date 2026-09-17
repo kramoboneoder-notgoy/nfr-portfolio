@@ -4,6 +4,9 @@ An end-to-end pipeline that takes a messy operational-risk incident export,
 cleans and enriches it with Python, stores it in SQLite, and surfaces it in
 an interactive Power BI dashboard for risk monitoring.
 
+The problem. Incident data exported from a source system is never clean: dates come in mixed formats, categories are typed inconsistently, financial impact is sometimes missing, and re-running an export duplicates rows. Anyone building a risk report by hand spends most of their time fixing these before analysis starts — and repeats it every month. This project makes that cleanup a reproducible script and puts the result straight into a dashboard, so the monthly reporting cycle becomes "run the pipeline, refresh Power BI."
+
+
 ![NFR Incident Overview dashboard](dashboard.png)
 
 ## The data

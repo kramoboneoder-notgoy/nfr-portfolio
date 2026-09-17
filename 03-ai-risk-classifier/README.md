@@ -1,5 +1,9 @@
 # Project 3 — AI-Powered Risk Report Classifier & Summarizer
 
+
+The problem. Incident reports arrive as free text. Someone has to read each one and decide its risk category, severity and urgency before it can be counted, trended or escalated — a bottleneck that delays everything downstream and produces inconsistent classifications between reviewers. This tool uses an LLM to draft that classification instantly and consistently, as structured data, so a risk analyst reviews suggestions instead of starting from a blank form.
+
+
 A Python tool that reads free-text incident descriptions — the kind an
 employee types into an incident form — and turns them into structured
 Non-Financial Risk data using an LLM.
