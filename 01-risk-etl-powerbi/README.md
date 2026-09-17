@@ -1,47 +1,86 @@
-# Project 2 — Databricks Medallion Pipeline for Risk Data
+# Project 1 — Non-Financial Risk Incident ETL Pipeline + Power BI Dashboard
 
-A Bronze → Silver → Gold PySpark pipeline over Non-Financial Risk incident
-data, written as a Databricks notebook and run on Databricks Community
-Edition. It uses the same Basel operational-risk taxonomy and CEE region
-footprint as Project 1, so the portfolio tells one story across tools.
+An end-to-end pipeline that takes a messy operational-risk incident export,
+cleans and enriches it with Python, stores it in SQLite, and surfaces it in
+an interactive Power BI dashboard for risk monitoring.
 
-<!-- After running on Databricks, add: ![Pipeline run](databricks_output.png) -->
+![NFR Incident Overview dashboard](dashboard.png)
 
-## Layers
+## The data
 
-| Layer | Table | What it does |
-| --- | --- | --- |
-| Bronze | `bronze_nfr_incidents` | Raw incidents stored exactly as they landed — schema-on-read, nothing dropped, so any downstream issue can be traced to source |
-| Silver | `silver_nfr_incidents` | Type casting, region codes normalized, missing `financial_impact_eur` imputed by category + severity median, duplicate `incident_id` rows removed, `severity_score` and `month` derived |
-| Gold | `gold_monthly_risk_summary`, `gold_business_unit_summary` | Business-ready aggregates: incidents and impact by month × category, and per business unit with the share of High/Critical incidents |
+The incident register is synthetic but modeled on how banks actually
+classify Non-Financial Risk: every incident carries a Basel operational-risk
+event type (Internal Fraud, External Fraud, Business Disruption & System
+Failures, Execution/Delivery & Process Management, etc.), a Level-2
+sub-category, a business unit, a CEE region code (AT, CZ, SK, HU, RO, HR,
+RS, BG), severity, financial impact in EUR, status and resolution time.
 
-A final cell flags incidents whose financial impact sits more than two
-standard deviations from their category mean — a simple statistical outlier
-check that sits on top of the pipeline rather than a claim to be a model.
+`generate_data.py` produces the raw export with the kind of defects a real
+source system delivers: inconsistent casing and whitespace, invalid dates
+(`31/02/2025`), missing financial-impact values, blank report dates, and
+duplicate rows from a double export.
 
-All tables are written as Delta tables, which Databricks supports natively.
+## The pipeline (`etl.py`)
 
-## Verified run
+| Step | What happens |
+| --- | --- |
+| Normalize | Trims whitespace, maps categories case-insensitively onto the canonical Basel taxonomy, title-cases business units |
+| Validate dates | Parses both date columns, drops rows whose occurrence date can't be parsed, back-fills missing report dates |
+| Impute | Missing `financial_impact_eur` is filled with the median for that risk category + severity, rather than dropped |
+| Deduplicate | Removes repeated `incident_id` rows |
+| Enrich | Adds `severity_score`, `reporting_lag_days`, `month`, `quarter`, `age_days`, and an `aging_bucket` (0–7 / 8–30 / 31–90 / 90+ days) |
+| Load | Writes `data/clean_incidents.csv` and a SQLite database with a `fact_incidents` table plus a pre-aggregated `gold_monthly_summary` |
 
-The notebook was executed end to end against a Spark session before
-publishing: 1,220 bronze rows → 1,200 silver rows after deduplication and
-cleaning → 226 monthly gold rows and a 6-row business-unit summary, with 42
-incidents flagged as financial-impact outliers.
+Result of a run: 915 raw rows → 872 clean incidents (29 unparseable dates
+dropped, 14 duplicates removed), EUR 39.1M total financial impact.
 
-## Run it
+![ETL console output](etl_output.png)
 
-1. Sign in to Databricks Community Edition and start a single-node cluster.
-2. Workspace → Import → select `risk_medallion_pipeline.py`. The
-   `# Databricks notebook source` header makes Databricks import it as a
-   multi-cell notebook.
-3. Attach the notebook to the cluster and Run All.
+## The dashboard (`nfr_dashboard.pbix`)
 
-The notebook generates its own input data in the first cell, so no upload
-or external storage is needed. Outside Databricks (plain local PySpark),
-replace `"delta"` with `"parquet"` in the write calls.
+Built on the clean CSV with a dedicated date table and these DAX measures:
+
+| Measure | Definition |
+| --- | --- |
+| Total Incidents | `COUNTROWS(clean_incidents)` |
+| Total Financial Impact | `SUM(clean_incidents[financial_impact_eur])` |
+| Critical/High Incidents | `CALCULATE([Total Incidents], severity IN {"High","Critical"})` |
+| Control Failure Rate | Share of incidents where a control failed |
+| Avg Resolution Days | Average resolution time over closed incidents |
+| MoM Change % | Month-over-month change in incident count via `DATEADD` on the date table |
+
+The page combines KPI cards, a monthly trend line, incidents by business
+unit stacked by severity, a risk-category × severity matrix with counts and
+financial impact, and slicers for region, status and month.
+
+## SQL (`analysis_queries.sql`)
+
+Five queries against `data/risk.db`: financial impact by category, monthly
+trend of high-severity incidents, business-unit × severity breakdown, open
+incidents with control failures ranked by age, and average resolution time
+per category.
+
+```bash
+sqlite3 data/risk.db < analysis_queries.sql
+```
+
+## Reproduce
+
+```bash
+pip install pandas numpy
+python generate_data.py   # -> data/raw_incidents.csv
+python etl.py             # -> data/clean_incidents.csv, data/risk.db
+```
+Then open `nfr_dashboard.pbix` in Power BI Desktop, or import
+`data/clean_incidents.csv` into a new report.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `risk_medallion_pipeline.py` | The notebook: data generation, bronze/silver/gold, outlier flag, summary |
+| `generate_data.py` | Synthetic raw incident export with realistic data-quality defects |
+| `etl.py` | Cleaning, enrichment, CSV + SQLite output |
+| `analysis_queries.sql` | Example analysis queries |
+| `nfr_dashboard.pbix` | Power BI report |
+| `dashboard.png`, `etl_output.png` | Screenshots of the dashboard and a pipeline run |
+| `data/` | Raw and clean CSVs, SQLite database |

@@ -1,51 +1,77 @@
-# Non-Financial Risk — Data & AI Automation Portfolio
+# Project 3 — AI-Powered Risk Report Classifier & Summarizer
 
-Three small, connected projects around one theme: automating how a bank's
-Non-Financial Risk function collects, cleans, analyses and reports
-operational-risk incidents. All three share a synthetic incident dataset
-modeled on the Basel operational-risk event-type taxonomy and a Central &
-Eastern European region footprint.
+A Python tool that reads free-text incident descriptions — the kind an
+employee types into an incident form — and turns them into structured
+Non-Financial Risk data using an LLM.
 
-| # | Project | What it covers | Tools |
-| --- | --- | --- | --- |
-| 1 | [Risk Incident ETL + Power BI Dashboard](01-risk-etl-powerbi/) | Cleaning a messy incident export, deriving risk KPIs, SQL analysis, an interactive risk dashboard | Python, pandas, SQLite, SQL, Power BI (DAX) |
-| 2 | [Databricks Medallion Pipeline](02-databricks-pipeline/) | Bronze / Silver / Gold pipeline with Delta tables and a statistical outlier flag | PySpark, Delta Lake, Databricks Community Edition |
-| 3 | [AI Risk Classifier & Summarizer](03-ai-risk-classifier/) | Turning free-text incident reports into structured risk data with an LLM | Python, LLM APIs (Anthropic / OpenAI), JSON |
+For each description it returns a Basel operational-risk category, a
+severity (Low / Medium / High / Critical), an estimated financial impact, a
+recommended action, the key entities mentioned, and a one-line rationale.
+Across a batch it adds an executive summary: the dominant category, how many
+incidents need prioritized review, and the total estimated exposure.
 
-![Project 1 dashboard](01-risk-etl-powerbi/dashboard.png)
+Output is structured JSON rather than a bare label, so it can feed a
+database or a dashboard (for example the `risk.db` from Project 1) instead
+of stopping at a classification demo.
 
-## Quick start
+## Two modes
+
+**Mock mode (default)** — a small rule-based classifier with no external
+dependencies or API key. It exists so the tool runs and can be demonstrated
+immediately.
+
+**Live mode** (`--live`) — sends each description to an LLM (Anthropic, or
+OpenAI if that key is set instead) with a system prompt that constrains the
+answer to the Basel taxonomy and a fixed JSON schema. If the call fails for
+any reason, the tool warns and falls back to mock mode instead of crashing.
+
+## Usage
 
 ```bash
-git clone https://github.com/kramoboneoder-notgoy/nfr-portfolio.git
-cd nfr-portfolio
-pip install -r requirements.txt
+# mock mode, nothing to install
+python risk_classifier.py --input sample_incidents.json
 
-# Project 1
-cd 01-risk-etl-powerbi && python generate_data.py && python etl.py && cd ..
+# a single incident
+python risk_classifier.py --text "A hacker used a stolen card to make fraudulent purchases at an ATM."
 
-# Project 3 (mock mode, no API key needed)
-cd 03-ai-risk-classifier && python risk_classifier.py --input sample_incidents.json && cd ..
-
-# Project 2: import 02-databricks-pipeline/risk_medallion_pipeline.py into Databricks
+# live mode
+pip install anthropic            # or: pip install openai
+export ANTHROPIC_API_KEY=...     # or OPENAI_API_KEY
+python risk_classifier.py --input sample_incidents.json --live
 ```
 
-Each folder has its own README with details, results and how to reproduce
-them.
+Results are written to `classified_incidents.json`.
 
-## Why one shared dataset
+## Sample run (mock mode, 7 incidents)
 
-Using the same taxonomy and regions across all three projects is
-deliberate: the repository is meant to read as one approach to
-Non-Financial Risk automation — ingestion, pipeline, reporting, and an AI
-layer on top — rather than three unrelated exercises.
+```
+- [  Medium] Execution, Delivery & Process Management: A customer's account was debited twice...
+- [  Medium] Internal Fraud: An employee accessed a colleague's customer file without...
+- [    High] Business Disruption & System Failures: The core banking system was unavailable...
+- [    High] External Fraud: A phishing email impersonating IT support...
+- [  Medium] Clients, Products & Business Practices: A customer complained that a structured product...
+- [    High] Damage to Physical Assets: Heavy flooding damaged the ground-floor branch office...
+- [  Medium] Execution, Delivery & Process Management: A relationship manager manually re-keyed...
 
-## About the data
+=== Executive Summary ===
+Processed 7 incident report(s).
+Most common risk category: Execution, Delivery & Process Management (2 incident(s)).
+3 of 7 flagged High/Critical severity — recommend prioritized review.
+Estimated total financial exposure across the batch: EUR 360,000.
+```
 
-All incident data is synthetically generated (see `generate_data.py` in
-Project 1 and the first cell of the Project 2 notebook). No real incidents,
-customers or confidential information appear anywhere in this repository.
+## Limitations and next steps
 
-## Author
+This is a working prototype, not a validated classifier. Before relying on
+it for real reports it would need a hand-labeled evaluation set to measure
+per-category accuracy, and review of disagreements with a risk analyst.
+Natural extensions: a small Streamlit front-end for non-technical users,
+and writing results directly into the Project 1 database so new incidents
+appear in the Power BI dashboard automatically.
 
-Bekarys — [github.com/kramoboneoder-notgoy](https://github.com/kramoboneoder-notgoy)
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `risk_classifier.py` | The tool — mock and live modes, batch summary |
+| `sample_incidents.json` | Seven sample incident descriptions |

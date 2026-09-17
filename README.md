@@ -1,86 +1,51 @@
-# Project 1 — Non-Financial Risk Incident ETL Pipeline + Power BI Dashboard
+# Non-Financial Risk — Data & AI Automation Portfolio
 
-An end-to-end pipeline that takes a messy operational-risk incident export,
-cleans and enriches it with Python, stores it in SQLite, and surfaces it in
-an interactive Power BI dashboard for risk monitoring.
+Three small, connected projects around one theme: automating how a bank's
+Non-Financial Risk function collects, cleans, analyses and reports
+operational-risk incidents. All three share a synthetic incident dataset
+modeled on the Basel operational-risk event-type taxonomy and a Central &
+Eastern European region footprint.
 
-![NFR Incident Overview dashboard](dashboard.png)
+| # | Project | What it covers | Tools |
+| --- | --- | --- | --- |
+| 1 | [Risk Incident ETL + Power BI Dashboard](01-risk-etl-powerbi/) | Cleaning a messy incident export, deriving risk KPIs, SQL analysis, an interactive risk dashboard | Python, pandas, SQLite, SQL, Power BI (DAX) |
+| 2 | [Databricks Medallion Pipeline](02-databricks-pipeline/) | Bronze / Silver / Gold pipeline with Delta tables and a statistical outlier flag | PySpark, Delta Lake, Databricks Community Edition |
+| 3 | [AI Risk Classifier & Summarizer](03-ai-risk-classifier/) | Turning free-text incident reports into structured risk data with an LLM | Python, LLM APIs (Anthropic / OpenAI), JSON |
 
-## The data
+![Project 1 dashboard](01-risk-etl-powerbi/dashboard.png)
 
-The incident register is synthetic but modeled on how banks actually
-classify Non-Financial Risk: every incident carries a Basel operational-risk
-event type (Internal Fraud, External Fraud, Business Disruption & System
-Failures, Execution/Delivery & Process Management, etc.), a Level-2
-sub-category, a business unit, a CEE region code (AT, CZ, SK, HU, RO, HR,
-RS, BG), severity, financial impact in EUR, status and resolution time.
-
-`generate_data.py` produces the raw export with the kind of defects a real
-source system delivers: inconsistent casing and whitespace, invalid dates
-(`31/02/2025`), missing financial-impact values, blank report dates, and
-duplicate rows from a double export.
-
-## The pipeline (`etl.py`)
-
-| Step | What happens |
-| --- | --- |
-| Normalize | Trims whitespace, maps categories case-insensitively onto the canonical Basel taxonomy, title-cases business units |
-| Validate dates | Parses both date columns, drops rows whose occurrence date can't be parsed, back-fills missing report dates |
-| Impute | Missing `financial_impact_eur` is filled with the median for that risk category + severity, rather than dropped |
-| Deduplicate | Removes repeated `incident_id` rows |
-| Enrich | Adds `severity_score`, `reporting_lag_days`, `month`, `quarter`, `age_days`, and an `aging_bucket` (0–7 / 8–30 / 31–90 / 90+ days) |
-| Load | Writes `data/clean_incidents.csv` and a SQLite database with a `fact_incidents` table plus a pre-aggregated `gold_monthly_summary` |
-
-Result of a run: 915 raw rows → 872 clean incidents (29 unparseable dates
-dropped, 14 duplicates removed), EUR 39.1M total financial impact.
-
-![ETL console output](etl_output.png)
-
-## The dashboard (`nfr_dashboard.pbix`)
-
-Built on the clean CSV with a dedicated date table and these DAX measures:
-
-| Measure | Definition |
-| --- | --- |
-| Total Incidents | `COUNTROWS(clean_incidents)` |
-| Total Financial Impact | `SUM(clean_incidents[financial_impact_eur])` |
-| Critical/High Incidents | `CALCULATE([Total Incidents], severity IN {"High","Critical"})` |
-| Control Failure Rate | Share of incidents where a control failed |
-| Avg Resolution Days | Average resolution time over closed incidents |
-| MoM Change % | Month-over-month change in incident count via `DATEADD` on the date table |
-
-The page combines KPI cards, a monthly trend line, incidents by business
-unit stacked by severity, a risk-category × severity matrix with counts and
-financial impact, and slicers for region, status and month.
-
-## SQL (`analysis_queries.sql`)
-
-Five queries against `data/risk.db`: financial impact by category, monthly
-trend of high-severity incidents, business-unit × severity breakdown, open
-incidents with control failures ranked by age, and average resolution time
-per category.
+## Quick start
 
 ```bash
-sqlite3 data/risk.db < analysis_queries.sql
+git clone https://github.com/kramoboneoder-notgoy/nfr-portfolio.git
+cd nfr-portfolio
+pip install -r requirements.txt
+
+# Project 1
+cd 01-risk-etl-powerbi && python generate_data.py && python etl.py && cd ..
+
+# Project 3 (mock mode, no API key needed)
+cd 03-ai-risk-classifier && python risk_classifier.py --input sample_incidents.json && cd ..
+
+# Project 2: import 02-databricks-pipeline/risk_medallion_pipeline.py into Databricks
 ```
 
-## Reproduce
+Each folder has its own README with details, results and how to reproduce
+them.
 
-```bash
-pip install pandas numpy
-python generate_data.py   # -> data/raw_incidents.csv
-python etl.py             # -> data/clean_incidents.csv, data/risk.db
-```
-Then open `nfr_dashboard.pbix` in Power BI Desktop, or import
-`data/clean_incidents.csv` into a new report.
+## Why one shared dataset
 
-## Files
+Using the same taxonomy and regions across all three projects is
+deliberate: the repository is meant to read as one approach to
+Non-Financial Risk automation — ingestion, pipeline, reporting, and an AI
+layer on top — rather than three unrelated exercises.
 
-| File | Purpose |
-| --- | --- |
-| `generate_data.py` | Synthetic raw incident export with realistic data-quality defects |
-| `etl.py` | Cleaning, enrichment, CSV + SQLite output |
-| `analysis_queries.sql` | Example analysis queries |
-| `nfr_dashboard.pbix` | Power BI report |
-| `dashboard.png`, `etl_output.png` | Screenshots of the dashboard and a pipeline run |
-| `data/` | Raw and clean CSVs, SQLite database |
+## About the data
+
+All incident data is synthetically generated (see `generate_data.py` in
+Project 1 and the first cell of the Project 2 notebook). No real incidents,
+customers or confidential information appear anywhere in this repository.
+
+## Author
+
+Bekarys — [github.com/kramoboneoder-notgoy](https://github.com/kramoboneoder-notgoy)

@@ -1,77 +1,47 @@
-# Project 3 — AI-Powered Risk Report Classifier & Summarizer
+# Project 2 — Databricks Medallion Pipeline for Risk Data
 
-A Python tool that reads free-text incident descriptions — the kind an
-employee types into an incident form — and turns them into structured
-Non-Financial Risk data using an LLM.
+A Bronze → Silver → Gold PySpark pipeline over Non-Financial Risk incident
+data, written as a Databricks notebook and run on Databricks Community
+Edition. It uses the same Basel operational-risk taxonomy and CEE region
+footprint as Project 1, so the portfolio tells one story across tools.
 
-For each description it returns a Basel operational-risk category, a
-severity (Low / Medium / High / Critical), an estimated financial impact, a
-recommended action, the key entities mentioned, and a one-line rationale.
-Across a batch it adds an executive summary: the dominant category, how many
-incidents need prioritized review, and the total estimated exposure.
+<!-- After running on Databricks, add: ![Pipeline run](databricks_output.png) -->
 
-Output is structured JSON rather than a bare label, so it can feed a
-database or a dashboard (for example the `risk.db` from Project 1) instead
-of stopping at a classification demo.
+## Layers
 
-## Two modes
+| Layer | Table | What it does |
+| --- | --- | --- |
+| Bronze | `bronze_nfr_incidents` | Raw incidents stored exactly as they landed — schema-on-read, nothing dropped, so any downstream issue can be traced to source |
+| Silver | `silver_nfr_incidents` | Type casting, region codes normalized, missing `financial_impact_eur` imputed by category + severity median, duplicate `incident_id` rows removed, `severity_score` and `month` derived |
+| Gold | `gold_monthly_risk_summary`, `gold_business_unit_summary` | Business-ready aggregates: incidents and impact by month × category, and per business unit with the share of High/Critical incidents |
 
-**Mock mode (default)** — a small rule-based classifier with no external
-dependencies or API key. It exists so the tool runs and can be demonstrated
-immediately.
+A final cell flags incidents whose financial impact sits more than two
+standard deviations from their category mean — a simple statistical outlier
+check that sits on top of the pipeline rather than a claim to be a model.
 
-**Live mode** (`--live`) — sends each description to an LLM (Anthropic, or
-OpenAI if that key is set instead) with a system prompt that constrains the
-answer to the Basel taxonomy and a fixed JSON schema. If the call fails for
-any reason, the tool warns and falls back to mock mode instead of crashing.
+All tables are written as Delta tables, which Databricks supports natively.
 
-## Usage
+## Verified run
 
-```bash
-# mock mode, nothing to install
-python risk_classifier.py --input sample_incidents.json
+The notebook was executed end to end against a Spark session before
+publishing: 1,220 bronze rows → 1,200 silver rows after deduplication and
+cleaning → 226 monthly gold rows and a 6-row business-unit summary, with 42
+incidents flagged as financial-impact outliers.
 
-# a single incident
-python risk_classifier.py --text "A hacker used a stolen card to make fraudulent purchases at an ATM."
+## Run it
 
-# live mode
-pip install anthropic            # or: pip install openai
-export ANTHROPIC_API_KEY=...     # or OPENAI_API_KEY
-python risk_classifier.py --input sample_incidents.json --live
-```
+1. Sign in to Databricks Community Edition and start a single-node cluster.
+2. Workspace → Import → select `risk_medallion_pipeline.py`. The
+   `# Databricks notebook source` header makes Databricks import it as a
+   multi-cell notebook.
+3. Attach the notebook to the cluster and Run All.
 
-Results are written to `classified_incidents.json`.
-
-## Sample run (mock mode, 7 incidents)
-
-```
-- [  Medium] Execution, Delivery & Process Management: A customer's account was debited twice...
-- [  Medium] Internal Fraud: An employee accessed a colleague's customer file without...
-- [    High] Business Disruption & System Failures: The core banking system was unavailable...
-- [    High] External Fraud: A phishing email impersonating IT support...
-- [  Medium] Clients, Products & Business Practices: A customer complained that a structured product...
-- [    High] Damage to Physical Assets: Heavy flooding damaged the ground-floor branch office...
-- [  Medium] Execution, Delivery & Process Management: A relationship manager manually re-keyed...
-
-=== Executive Summary ===
-Processed 7 incident report(s).
-Most common risk category: Execution, Delivery & Process Management (2 incident(s)).
-3 of 7 flagged High/Critical severity — recommend prioritized review.
-Estimated total financial exposure across the batch: EUR 360,000.
-```
-
-## Limitations and next steps
-
-This is a working prototype, not a validated classifier. Before relying on
-it for real reports it would need a hand-labeled evaluation set to measure
-per-category accuracy, and review of disagreements with a risk analyst.
-Natural extensions: a small Streamlit front-end for non-technical users,
-and writing results directly into the Project 1 database so new incidents
-appear in the Power BI dashboard automatically.
+The notebook generates its own input data in the first cell, so no upload
+or external storage is needed. Outside Databricks (plain local PySpark),
+replace `"delta"` with `"parquet"` in the write calls.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `risk_classifier.py` | The tool — mock and live modes, batch summary |
-| `sample_incidents.json` | Seven sample incident descriptions |
+| `risk_medallion_pipeline.py` | The notebook: data generation, bronze/silver/gold, outlier flag, summary |
