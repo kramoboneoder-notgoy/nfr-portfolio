@@ -1,0 +1,12 @@
+# Project 1 (ETL + Power BI data prep)
+pandas>=2.0
+numpy>=1.24
+
+# Project 2 (Databricks pipeline) — no local install needed, runs on
+# Databricks Community Edition, which ships PySpark + Delta Lake built in.
+# For local experimentation only: pyspark>=3.5
+
+# Project 3 (AI risk classifier) — mock mode needs nothing extra.
+# For --live mode, install exactly one of:
+# anthropic>=0.40
+# openai>=1.50

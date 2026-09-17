@@ -1,0 +1,9 @@
+[
+  "A customer's account was debited twice for the same transfer due to a batch job bug in the overnight settlement process. EUR 1,240 affected, refunded next day.",
+  "An employee accessed a colleague's customer file without a business reason and shared screenshots over personal WhatsApp.",
+  "The core banking system was unavailable for 3 hours during business hours due to a failed database failover, affecting branch transactions across the CZ region.",
+  "A phishing email impersonating IT support led a staff member to enter their credentials on a fake login page; account access was revoked within 20 minutes.",
+  "A customer complained that a structured product was recommended without proper suitability assessment, potentially breaching MiFID-style suitability rules.",
+  "Heavy flooding damaged the ground-floor branch office in Vienna, destroying two workstations and a document archive.",
+  "A relationship manager manually re-keyed a large wire transfer amount incorrectly, sending EUR 45,000 instead of EUR 4,500; corrected within the same day."
+]
