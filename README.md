@@ -1,53 +1,86 @@
-# Non-Financial Risk — Data & AI Automation Portfolio
+# Project 1 — Non-Financial Risk Incident ETL Pipeline + Power BI Dashboard
 
-Built for an application to RBI's Non-Financial Risk Tribe (Student Job —
-Data & AI Automation). Three small, connected projects that mirror the
-actual bullet points in that posting, all built on one synthetic
-Non-Financial Risk incident dataset modeled on the Basel operational-risk
-event-type taxonomy.
+An end-to-end pipeline that takes a messy operational-risk incident export,
+cleans and enriches it with Python, stores it in SQLite, and surfaces it in
+an interactive Power BI dashboard for risk monitoring.
 
-| # | Project | Job requirement it targets | Tools |
-| --- | --- | --- | --- |
-| 1 | [Risk Incident ETL + Power BI Dashboard](01-risk-etl-powerbi/) | Data preparation/transformation & analysis; Power BI dashboards for risk purposes | Python, pandas, SQLite, SQL, Power BI |
-| 2 | [Databricks Medallion Pipeline](02-databricks-pipeline/) | Data pipelines on modern platforms (e.g. Databricks) | PySpark, Delta Lake, Databricks Community Edition |
-| 3 | [AI Risk Classifier & Summarizer](03-ai-risk-classifier/) | Leverage AI/LLM tools for automation, documentation, data analysis | Python, LLM APIs (Anthropic/OpenAI), JSON |
+![NFR Incident Overview dashboard](dashboard.png)
 
-## Quick start
+## The data
+
+The incident register is synthetic but modeled on how banks actually
+classify Non-Financial Risk: every incident carries a Basel operational-risk
+event type (Internal Fraud, External Fraud, Business Disruption & System
+Failures, Execution/Delivery & Process Management, etc.), a Level-2
+sub-category, a business unit, a CEE region code (AT, CZ, SK, HU, RO, HR,
+RS, BG), severity, financial impact in EUR, status and resolution time.
+
+`generate_data.py` produces the raw export with the kind of defects a real
+source system delivers: inconsistent casing and whitespace, invalid dates
+(`31/02/2025`), missing financial-impact values, blank report dates, and
+duplicate rows from a double export.
+
+## The pipeline (`etl.py`)
+
+| Step | What happens |
+| --- | --- |
+| Normalize | Trims whitespace, maps categories case-insensitively onto the canonical Basel taxonomy, title-cases business units |
+| Validate dates | Parses both date columns, drops rows whose occurrence date can't be parsed, back-fills missing report dates |
+| Impute | Missing `financial_impact_eur` is filled with the median for that risk category + severity, rather than dropped |
+| Deduplicate | Removes repeated `incident_id` rows |
+| Enrich | Adds `severity_score`, `reporting_lag_days`, `month`, `quarter`, `age_days`, and an `aging_bucket` (0–7 / 8–30 / 31–90 / 90+ days) |
+| Load | Writes `data/clean_incidents.csv` and a SQLite database with a `fact_incidents` table plus a pre-aggregated `gold_monthly_summary` |
+
+Result of a run: 915 raw rows → 872 clean incidents (29 unparseable dates
+dropped, 14 duplicates removed), EUR 39.1M total financial impact.
+
+![ETL console output](etl_output.png)
+
+## The dashboard (`nfr_dashboard.pbix`)
+
+Built on the clean CSV with a dedicated date table and these DAX measures:
+
+| Measure | Definition |
+| --- | --- |
+| Total Incidents | `COUNTROWS(clean_incidents)` |
+| Total Financial Impact | `SUM(clean_incidents[financial_impact_eur])` |
+| Critical/High Incidents | `CALCULATE([Total Incidents], severity IN {"High","Critical"})` |
+| Control Failure Rate | Share of incidents where a control failed |
+| Avg Resolution Days | Average resolution time over closed incidents |
+| MoM Change % | Month-over-month change in incident count via `DATEADD` on the date table |
+
+The page combines KPI cards, a monthly trend line, incidents by business
+unit stacked by severity, a risk-category × severity matrix with counts and
+financial impact, and slicers for region, status and month.
+
+## SQL (`analysis_queries.sql`)
+
+Five queries against `data/risk.db`: financial impact by category, monthly
+trend of high-severity incidents, business-unit × severity breakdown, open
+incidents with control failures ranked by age, and average resolution time
+per category.
 
 ```bash
-git clone <your-fork-of-this-repo>
-cd nfr-portfolio
-pip install -r requirements.txt
-
-# Project 1
-cd 01-risk-etl-powerbi && python generate_data.py && python etl.py && cd ..
-
-# Project 3 (mock mode, no API key needed)
-cd 03-ai-risk-classifier && python risk_classifier.py --input sample_incidents.json && cd ..
-
-# Project 2 — import 02-databricks-pipeline/risk_medallion_pipeline.py
-# into Databricks Community Edition (see that folder's README)
+sqlite3 data/risk.db < analysis_queries.sql
 ```
 
-Each project folder has its own README with exact steps, screenshots to
-take, and interview talking points.
+## Reproduce
 
-## Why one shared dataset
+```bash
+pip install pandas numpy
+python generate_data.py   # -> data/raw_incidents.csv
+python etl.py             # -> data/clean_incidents.csv, data/risk.db
+```
+Then open `nfr_dashboard.pbix` in Power BI Desktop, or import
+`data/clean_incidents.csv` into a new report.
 
-All three projects use the same Basel event-type taxonomy and the same RBI
-CEE region footprint (AT, CZ, SK, HU, RO, HR, RS, BG) rather than three
-unrelated toy datasets. The intent is that this reads as one coherent
-"how I'd approach Non-Financial Risk automation" case study, not three
-disconnected coding exercises — the difference between "I did some Python
-tutorials" and "I understand what this role actually does."
+## Files
 
-## About the data
-
-All incident data is **synthetically generated** (see each project's
-`generate_data.py`) — no real incidents, customers, or confidential
-information are involved anywhere in this repository.
-
-## Author
-
-Built by Bekarys as part of a job application to RBI's Non-Financial Risk
-Tribe (Student Job — Data & AI Automation, Vienna).
+| File | Purpose |
+| --- | --- |
+| `generate_data.py` | Synthetic raw incident export with realistic data-quality defects |
+| `etl.py` | Cleaning, enrichment, CSV + SQLite output |
+| `analysis_queries.sql` | Example analysis queries |
+| `nfr_dashboard.pbix` | Power BI report |
+| `dashboard.png`, `etl_output.png` | Screenshots of the dashboard and a pipeline run |
+| `data/` | Raw and clean CSVs, SQLite database |
