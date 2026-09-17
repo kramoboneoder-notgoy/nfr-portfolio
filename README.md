@@ -6,6 +6,8 @@ operational-risk incidents. All three share a synthetic incident dataset
 modeled on the Basel operational-risk event-type taxonomy and a Central &
 Eastern European region footprint.
 
+The problem. A bank's Non-Financial Risk function runs on incident reports: an employee describes what went wrong, someone classifies it, someone else aggregates it into dashboards for management and regulators. In practice that chain is slow and manual — free-text reports sit unclassified, exports from different systems arrive messy and duplicated, and by the time the numbers reach a dashboard they're weeks old. This portfolio automates each link of that chain: the AI layer classifies reports as they arrive (Project 3), the pipeline cleans and aggregates them reliably at scale (Projects 1 and 2), and the dashboard turns the result into something a risk manager can act on (Project 1).
+
 | # | Project | What it covers | Tools |
 | --- | --- | --- | --- |
 | 1 | [Risk Incident ETL + Power BI Dashboard](01-risk-etl-powerbi/) | Cleaning a messy incident export, deriving risk KPIs, SQL analysis, an interactive risk dashboard | Python, pandas, SQLite, SQL, Power BI (DAX) |
