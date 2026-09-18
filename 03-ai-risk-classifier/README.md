@@ -7,6 +7,7 @@ The problem. Incident reports arrive as free text. Someone has to read each one 
 A Python tool that reads free-text incident descriptions — the kind an
 employee types into an incident form — and turns them into structured
 Non-Financial Risk data using an LLM.
+![Classifier output](classifier_output.png)
 
 For each description it returns a Basel operational-risk category, a
 severity (Low / Medium / High / Critical), an estimated financial impact, a
